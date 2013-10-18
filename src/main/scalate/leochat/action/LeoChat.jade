@@ -1,0 +1,117 @@
+- import leochat.action._
+
+h1 Xitrum WebSocket chat with LeoFS
+
+#chatOutput
+input(type="text" id="chatInput" name="chatInput" class="required" disabled="disabled")
+
+input(type="radio" name="image_select" value="0" checked)
+img(id="png_0" src={publicUrl("images/leofs.png")})
+br
+input(type="radio" name="image_select" value="1")
+img(id="png_1" src={publicUrl("images/xitrum.png")})
+br
+input(type="radio" name="image_select" value="2")
+input(type="file" id="chatFile" name="chatFile" class="required" disabled="disabled")
+
+
+br
+button(id="fileSend") stamp
+-
+ jsAddToView(
+    "var url = '" + webSocketAbsUrl[LeoChatActor] + "';" +
+    """
+    var socket;
+
+    // Do not put in initSocket so that this event handler is registered only once
+    $('#chatInput').keypress(function(event) {
+      var keycode = (event.keyCode ? event.keyCode : event.which);
+      if (keycode == '13') {
+        socket.send($('#chatInput').val());
+        $('#chatInput').val('');
+      }
+    });
+
+    function sendImage(){
+      var data = "",
+      getBase64FromImageUrl = function(URL) {
+        var img = new Image();
+        img.src = URL;
+        img.onload = function () {
+          var canvas = document.createElement("canvas");
+          canvas.width =this.width;
+          canvas.height =this.height;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(this, 0, 0);
+          socket.send(canvas.toDataURL("image/png"));
+        }
+      },
+      fileRead = function(fileData){
+        var reader = new FileReader();
+        reader.onerror = function (evt) {
+          showAlert("Cannot read file, some eroor occuerd.");
+          return;
+        }
+        reader.onload = function(evt){
+          socket.send(evt.target.result);
+        }
+        reader.readAsDataURL(fileData);
+      },
+      imgNum = $('input[name="image_select"]:checked').val()
+      ;
+
+      if(imgNum === "2"){
+        var fileData = document.getElementById("chatFile").files[0];
+        if (!fileData){
+          alert("File was not found.");
+          return;
+        }
+        if (fileData.type && !fileData.type.match('image/*')) {
+          alert("Cannot read file. Please set plain image file.");
+          return;
+        }
+        fileRead(fileData);
+      }else{
+        getBase64FromImageUrl($("#png_"+imgNum).attr('src'));
+      }
+    }
+    $("#fileSend").on('click',sendImage);
+
+
+    var initSocket = function() {
+      if (!window.WebSocket) window.WebSocket = window.MozWebSocket;
+      if (!window.WebSocket) {
+        alert("Your browser does not support WebSocket.");
+      } else {
+        socket = new WebSocket(url);
+
+        socket.onopen = function(event) {
+          var text = '<b>[Connected]</b><br />';
+          xitrum.appendAndScroll('#chatOutput', text);
+          $('#chatInput').removeAttr('disabled');
+          $('#chatFile').removeAttr('disabled');
+        };
+
+        socket.onclose = function(event) {
+          var text = '<b>[Disconnected]</b><br />';
+          xitrum.appendAndScroll('#chatOutput', text);
+          $('#chatInput').attr('disabled', 'disabled');
+
+          // Reconnect
+          setTimeout(initSocket, 1000);
+        };
+
+        socket.onmessage = function(event) {
+            var text = "";
+          if(event.data.match(/^data:/)){
+            text = "<img src='" + event.data +"'><br />"
+          }else{
+            text = '- ' + xitrum.escapeHtml(event.data) + '<br />';
+          }
+          xitrum.appendAndScroll('#chatOutput', text);
+        };
+      }
+    };
+    initSocket();
+    """
+  )

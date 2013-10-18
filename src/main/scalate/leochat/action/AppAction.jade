@@ -1,0 +1,39 @@
+- import leochat.action._
+
+!!! 5
+html
+  head
+    != antiCsrfMeta
+    != xitrumCSS
+
+    meta(content="text/html; charset=utf-8" http-equiv="content-type")
+    title Welcome to Xitrum
+
+    link(type="image/vnd.microsoft.icon" rel="shortcut icon" href={publicUrl("favicon.ico")})
+
+    link(type="text/css" rel="stylesheet" media="all" href={publicUrl("css/960/reset.css")})
+    link(type="text/css" rel="stylesheet" media="all" href={publicUrl("css/960/text.css")})
+    link(type="text/css" rel="stylesheet" media="all" href={publicUrl("css/960/960.css")})
+    link(type="text/css" rel="stylesheet" media="all" href={publicUrl("css/app.css")})
+
+  body
+    .container_12
+      h1
+        a(href={url[SiteIndex]}) Xitrum Demos
+
+      .grid_8
+        #flash
+          !~ jsRenderFlash()
+        != renderedView
+
+      .grid_4
+        h3 Demos
+
+        p
+          a(href="https://github.com/georgeOsdDev/xitrum-leochat") Source code
+
+        p
+          a(href={url[LeoChat]}) WebSocket Image chat with LEOFS
+
+    != jsDefaults
+    != jsForView
