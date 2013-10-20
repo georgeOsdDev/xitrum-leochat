@@ -1,0 +1,49 @@
+// Clear bucket from sbt console
+
+import scala.collection.JavaConversions._
+import scala.util.{Try, Success, Failure}
+
+import com.amazonaws.AmazonClientException
+import com.amazonaws.AmazonServiceException
+import com.amazonaws.{ClientConfiguration, Protocol}
+import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.services.s3.model.{Bucket, GetObjectRequest, ListObjectsRequest, ObjectMetadata, PutObjectRequest}
+
+import com.typesafe.config.{Config, ConfigFactory}
+
+val leofsConfig = xitrum.Config.application.getConfig("leofs")
+
+  /* ---------------------------------------------------------
+ * You need to set 'Proxy host', 'Proxy port' and 'Protocol'
+ * --------------------------------------------------------- */
+val config = new ClientConfiguration();
+  config.withProtocol(Protocol.HTTP)
+  config.setProxyHost(leofsConfig.getString("proxyhost"))
+  config.setProxyPort(leofsConfig.getInt("proxyport"))
+
+val accessKeyId = leofsConfig.getString("accessKeyId")
+val secretAccessKey = leofsConfig.getString("secretAccessKey")
+
+val credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey)
+val s3 = new AmazonS3Client(credentials, config);
+
+var bucket:Bucket = _
+val buckets = s3.listBuckets()
+buckets.toList.foreach { b =>
+  if (b.getName() == leofsConfig.getString("bucket"))
+    bucket = b
+}
+if (!bucket.isInstanceOf[Bucket]) {
+  val newbucket = Try(s3.createBucket(leofsConfig.getString("bucket")))
+  newbucket match {
+    case Success(newbucket) =>
+      bucket = newbucket
+    case Failure(v) =>
+      println("error:createBucket")
+  }
+}
+
+val objectListing = s3.listObjects(new ListObjectsRequest().withBucketName(bucket.getName()))
+objectListing.getObjectSummaries().toList.foreach { meta => s3.deleteObject(bucket.getName(),meta.getKey())}
+
