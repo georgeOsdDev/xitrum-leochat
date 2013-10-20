@@ -88,7 +88,9 @@ object LeoFS{
     try {
       val objectListing = s3.listObjects(new ListObjectsRequest().withBucketName(bucket.getName()))
       objectListing.getObjectSummaries().toList.take(num).foreach { meta =>
-        messages = messages :+ read(meta.getKey())
+        // Display older to newer
+        // messages = messages :+ read(meta.getKey())
+        messages = read(meta.getKey()) +: messages
       }
     } catch {
       case ase: AmazonServiceException =>

@@ -43,10 +43,13 @@ object MessageQueManager{
 }
 
 class MessageQueManager extends Actor with Logger{
+  val infinitie = "9999999999999".toLong
   var clients = Seq[ActorRef]()
   def receive = {
     case pub: Publish =>
-      LeoFS.save((System.currentTimeMillis()).toString,pub.msg)
+      // s3.listObjects()) they are returned in alphabetical order
+      val key = (infinitie - System.currentTimeMillis()).toString
+      LeoFS.save(key,pub.msg)
       clients.foreach(_ ! MsgsFromQueue(Seq(pub.msg)))
     case sub: Subscribe =>
         clients = clients :+ sender
