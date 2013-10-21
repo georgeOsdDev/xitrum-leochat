@@ -20,8 +20,8 @@ val config = new ClientConfiguration();
   config.setProxyHost("localhost")
   config.setProxyPort(8080)
 
-val accessKeyId = "3bd2cc47e60286ff9de7"                          //accessKeyId here
-val secretAccessKey = "1f6bbf8cb4f4c02159f8d0325e547589d7e9e30d"    //secretAccessKey here
+val accessKeyId = "831ea1f85c6bb307895b"                          //accessKeyId here
+val secretAccessKey = "4162674cc84583136b546ee3eb934f75b070faba"    //secretAccessKey here
 
 val credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey)
 val s3 = new AmazonS3Client(credentials, config);
@@ -31,18 +31,18 @@ def lookupBucket(name: String): Option[Bucket] = {
     buckets.toList.find { b => b.getName == name }
 }
 
-  private var bucket: Bucket = {
-    lookupBucket("xitrum-leochat").getOrElse {
-      try {
-        s3.createBucket(leofsConfig.getString("bucket"))
-      } catch {
-        case NonFatal(e) =>
-          logger.error("Could not create bucket", e)
-          throw e
-          null
-      }
+var bucket: Bucket = {
+  lookupBucket("xitrum-leochat").getOrElse {
+    try {
+      s3.createBucket("xitrum-leochat")
+    } catch {
+      case NonFatal(e) =>
+        // logger.error("Could not create bucket", e)
+        throw e
+        null
     }
   }
+}
 
 def read(key: String): Option[String] = {
   try {
