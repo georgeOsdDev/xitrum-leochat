@@ -45,7 +45,7 @@ Getting started
 
 ::
 
-  sh script/8000.sh
-  sh script/8001.sh (from another terminal)
+  sh dev/8000.sh
+  sh dev/8001.sh (from another terminal)
 
 Now you have clustered instances running at http://localhost:8000/ and https://localhost:8001/
