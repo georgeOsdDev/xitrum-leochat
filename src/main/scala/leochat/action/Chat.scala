@@ -1,13 +1,13 @@
 package leochat.action
 
+import scala.util.parsing.json.JSONObject
+
 import akka.actor.{Actor, ActorRef, Props}
-
 import glokka.Registry
-
 import xitrum.{Config, Logger, WebSocketActor, WebSocketBinary, WebSocketPing, WebSocketPong, WebSocketText}
 import xitrum.annotation.{GET, WEBSOCKET}
+import leochat.model.{LeoFS, Msg}
 
-import leochat.model.LeoFS
 
 object MsgQManager {
   val NAME = {
@@ -22,17 +22,20 @@ object MsgQManager {
   def start() {}
 }
 
-case class MsgsFromQueue(msgs: Seq[String])
-case class Publish(msg: String)
+case class MsgsFromQueue(msgs: Seq[Msg])
+case class Publish(msg: String, name: String)
 case class Subscribe(num: Int)
 
 class MsgQManager extends Actor with Logger {
   private var clients = Seq[ActorRef]()
 
   def receive = {
-    case Publish(msg) =>
-      LeoFS.save(msg)
-      clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
+    case Publish(msg, name) =>
+      val saved = LeoFS.save(msg, name).get
+      saved match {
+        case msg:Msg => clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
+        case ignore =>
+      }
 
     case Subscribe(num) =>
       clients = clients :+ sender
@@ -89,10 +92,13 @@ class LeoChatActor extends WebSocketActor{
     msgQueManager ! Subscribe(10)  // Read latest 10
     context.become {
       case MsgsFromQueue(msgs) =>
-        msgs.foreach { msg => respondWebSocketText(msg) }
+        msgs.foreach { msg =>
+          val jsonObj = JSONObject(Map("key" -> msg.key, "date" -> msg.date, "name" -> msg.name, "body" -> msg.body));
+          respondWebSocketText(jsonObj.toString())
+        }
 
       case WebSocketText(text) =>
-        msgQueManager ! Publish(text)
+        msgQueManager ! Publish(text, self.path.name)
 
       case unexpected =>
         logger.warn("Unexpected message: " + unexpected)

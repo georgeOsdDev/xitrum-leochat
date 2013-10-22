@@ -77,6 +77,15 @@ button(id="fileSend") stamp
     }
     $("#fileSend").on('click',sendImage);
 
+    // read older messages via ajax request
+    var readMore = function(){
+      // $.get(ajaxurl,{
+      // })
+      // .done(function(data){
+      // })
+      // .fail(function(e){
+      // });
+    };
 
     var initSocket = function() {
       if (!window.WebSocket) window.WebSocket = window.MozWebSocket;
@@ -86,10 +95,11 @@ button(id="fileSend") stamp
         socket = new WebSocket(url);
 
         socket.onopen = function(event) {
-          var text = '<b>[Connected]</b><br />';
+          var text = '<div id="connected"><b>[Connected]</b>&nbsp;<button id="readMore">Read Older</button><br /></div>';
           xitrum.appendAndScroll('#chatOutput', text);
           $('#chatInput').removeAttr('disabled');
           $('#chatFile').removeAttr('disabled');
+          $("#readMore").on('click',readMore);
         };
 
         socket.onclose = function(event) {
@@ -102,13 +112,20 @@ button(id="fileSend") stamp
         };
 
         socket.onmessage = function(event) {
-            var text = "";
-          if(event.data.match(/^data:/)){
-            text = "<img src='" + event.data +"'><br />"
+            var json = JSON.parse(event.data),
+                key  = json.key,
+                date = json.date,
+                name = json.name,
+                body = json.body
+                ;
+
+            var content = '<span id=' + key +'>' +xitrum.escapeHtml(date + " by " + name + " ");
+          if(body.match(/^data:/)){
+            content = content + "<img src='" + body +"'></span><br />"
           }else{
-            text = '- ' + xitrum.escapeHtml(event.data) + '<br />';
+            content = content +  '- ' + xitrum.escapeHtml(body) + '</span><br />';
           }
-          xitrum.appendAndScroll('#chatOutput', text);
+          xitrum.appendAndScroll('#chatOutput', content);
         };
       }
     };

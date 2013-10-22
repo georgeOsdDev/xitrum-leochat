@@ -1,20 +1,21 @@
 package leochat.model
 
 import java.io.ByteArrayInputStream
+import java.util.Date
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConversions.asScalaBuffer
 import scala.io.Source
 import scala.util.control.NonFatal
+import scala.util.parsing.json.{JSON, JSONObject}
 
-import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import com.amazonaws.{ClientConfiguration, Protocol}
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.{Bucket, GetObjectRequest, ListObjectsRequest, ObjectMetadata, PutObjectRequest}
 
-import com.typesafe.config.{Config, ConfigFactory}
-
 import xitrum.Logger
+
+case class Msg(key: String, date: String, name: String, body: String)
 
 object LeoFS extends Logger {
   private val leofsConfig = xitrum.Config.application.getConfig("leofs")
@@ -55,28 +56,51 @@ object LeoFS extends Logger {
     new ByteArrayInputStream(data.getBytes("UTF-8"))
   }
 
-  def save(data: String) {
+  def save(data: String, name: String): Option[Msg] = {
     // s3.listObjects() they are returned in alphabetical order (string comparison!)
     val length = Long.MaxValue.toString.length
     val key    = s"%${length}d".format(Long.MaxValue - System.currentTimeMillis())
+    val date    =  "%tY/%<tm/%<td %<tH:%<tM:%<tS".format(new Date)
 
     val meta        = new ObjectMetadata
-    val customeMeta = Map("xitrum_content_type" -> "image")
-    meta.setUserMetadata(customeMeta)
-    meta.setContentLength(data.length)
+
+    val userMetaData = Map(
+        "leochat_content_type" -> "image",
+        "leochat_date" -> date,
+        "leochat_name" -> name
+    )
+    // meta.setUserMetadata(userMetaData)
+    // Could not get userMetaData in read(), so save as part of data
+    val jsonStr = JSONObject(Map("userMetaData" -> JSONObject(userMetaData), "data" -> data)).toString()
+    meta.setContentLength(jsonStr.length)
+
     try {
-      s3.putObject(new PutObjectRequest(bucket.getName, key, stringToStream(data), meta))
+      s3.putObject(new PutObjectRequest(bucket.getName, key, stringToStream(jsonStr), meta))
+      Some(Msg(key, date, name, data))
     } catch {
       case NonFatal(e) =>
         logger.warn("save error: " + e)
+        None
     }
   }
 
-  private def read(key: String): Option[String] = {
+  private def read(key: String): Option[Msg] = {
     try {
       val v = s3.getObject(new GetObjectRequest(bucket.getName, key))
-      val content = v.getObjectContent()
-      Some(Source.fromInputStream(content).getLines.mkString(""))
+      val content = v.getObjectContent
+
+      // val meta    = v.getObjectMetadata
+      // val udata   = meta.getUserMetadata
+      // Could not get userMetaData from storage why?, so get from part of data
+      val jsonText = Source.fromInputStream(content).getLines.mkString("")
+
+      val jsonObj : Option[Any] = JSON.parseFull(jsonText);
+      val result : Map[String, Option[Any]]
+          = jsonObj.get.asInstanceOf[Map[String, Option[Any]]];
+      val meta = result("userMetaData").asInstanceOf[Map[String,String]]
+      val data = result("data").asInstanceOf[String]
+
+      Some(Msg(key, meta.get("leochat_date").get, meta.get("leochat_name").get, data))
     } catch {
       case NonFatal(e) =>
         logger.warn("read error: " + e)
@@ -84,18 +108,20 @@ object LeoFS extends Logger {
     }
   }
 
-  def readHead(num: Int): Seq[String] = {
+  def readHead(num: Int): Seq[Msg] = {
     try {
       val r = new ListObjectsRequest
       r.setBucketName(bucket.getName)
       r.setMaxKeys(num)
 
-      var messages = Seq[String]()
+      var messages = Seq[Msg]()
       val objectListing = s3.listObjects(r)
       objectListing.getObjectSummaries.toList.foreach { meta =>
         // Display older to newer
-        val msg = read(meta.getKey).getOrElse("")
-        messages = msg +: messages
+        read(meta.getKey).get match {
+          case msg:Msg => messages = msg +: messages
+          case ignore =>
+        }
       }
       messages
     } catch {
