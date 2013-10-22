@@ -3,14 +3,14 @@ package leochat.action
 import xitrum.annotation.{Error404, Error500}
 
 @Error404
-class NotFoundError extends DefaultLayout {
+class NotFoundError extends AppAction {
   def execute() {
     respondView()
   }
 }
 
 @Error500
-class ServerError extends DefaultLayout {
+class ServerError extends AppAction {
   def execute() {
     respondView()
   }
