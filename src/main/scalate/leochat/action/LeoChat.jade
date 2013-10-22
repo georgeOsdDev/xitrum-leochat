@@ -20,6 +20,7 @@ button(id="fileSend") stamp
 -
  jsAddToView(
     "var url = '" + webSocketAbsUrl[LeoChatActor] + "';" +
+    "var ajaxUrl = '" + url[LeoChatRest] + "';" +
     """
     var socket;
 
@@ -79,12 +80,31 @@ button(id="fileSend") stamp
 
     // read older messages via ajax request
     var readMore = function(){
-      // $.get(ajaxurl,{
-      // })
-      // .done(function(data){
-      // })
-      // .fail(function(e){
-      // });
+       $.get(ajaxUrl,{lastKey:$("#chatOutput").children('span')[0].id })
+       .done(function(data){
+         $.each(data,function(idx,msg){
+            $("#connected").after(getContent(msg));
+         });
+       })
+       .fail(function(e){
+         console.log("error");
+       });
+    };
+
+    var getContent = function(msg){
+      var key  = msg.key,
+          date = msg.date,
+          name = msg.name,
+          body = msg.body
+          ;
+
+      var content = '<span id=' + key +'>' +xitrum.escapeHtml(date + " by " + name + " ");
+      if(body.match(/^data:/)){
+        content = content + "<img src='" + body +"'></span><br />"
+      }else{
+        content = content +  '- ' + xitrum.escapeHtml(body) + '</span><br />';
+      }
+      return content;
     };
 
     var initSocket = function() {
@@ -112,20 +132,8 @@ button(id="fileSend") stamp
         };
 
         socket.onmessage = function(event) {
-            var json = JSON.parse(event.data),
-                key  = json.key,
-                date = json.date,
-                name = json.name,
-                body = json.body
-                ;
-
-            var content = '<span id=' + key +'>' +xitrum.escapeHtml(date + " by " + name + " ");
-          if(body.match(/^data:/)){
-            content = content + "<img src='" + body +"'></span><br />"
-          }else{
-            content = content +  '- ' + xitrum.escapeHtml(body) + '</span><br />';
-          }
-          xitrum.appendAndScroll('#chatOutput', content);
+          var json = JSON.parse(event.data);
+          xitrum.appendAndScroll('#chatOutput', getContent(json));
         };
       }
     };
