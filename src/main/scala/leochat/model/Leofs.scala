@@ -6,7 +6,6 @@ import java.util.Date
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.parsing.json.{JSON, JSONObject}
 
 import com.amazonaws.{ClientConfiguration, Protocol}
 import com.amazonaws.auth.BasicAWSCredentials
@@ -14,6 +13,7 @@ import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.{Bucket, GetObjectRequest, ListObjectsRequest, ObjectMetadata, PutObjectRequest}
 
 import xitrum.Logger
+import xitrum.util.Json
 
 case class Msg(key: String, date: String, name: String, body: String)
 
@@ -71,12 +71,12 @@ object LeoFS extends Logger {
     )
     // meta.setUserMetadata(userMetaData)
     // Could not get userMetaData in read(), so save as part of data
-    val jsonStr = JSONObject(Map("userMetaData" -> JSONObject(userMetaData), "data" -> data)).toString()
+    val msg = Msg(key, date, name, data)
+    val jsonStr = Json.generate(msg)
     meta.setContentLength(jsonStr.length)
-
     try {
       s3.putObject(new PutObjectRequest(bucket.getName, key, stringToStream(jsonStr), meta))
-      Some(Msg(key, date, name, data))
+      Some(msg)
     } catch {
       case NonFatal(e) =>
         logger.warn("save error: " + e)
@@ -84,23 +84,17 @@ object LeoFS extends Logger {
     }
   }
 
-  private def read(key: String): Option[Msg] = {
+  def read(key: String): Option[Msg] = {
     try {
       val v = s3.getObject(new GetObjectRequest(bucket.getName, key))
       val content = v.getObjectContent
 
       // val meta    = v.getObjectMetadata
       // val udata   = meta.getUserMetadata
-      // Could not get userMetaData from storage why?, so get from part of data
+      // Could not get userMetaData from storage why?
       val jsonText = Source.fromInputStream(content).getLines.mkString("")
-
-      val jsonObj : Option[Any] = JSON.parseFull(jsonText);
-      val result : Map[String, Option[Any]]
-          = jsonObj.get.asInstanceOf[Map[String, Option[Any]]];
-      val meta = result("userMetaData").asInstanceOf[Map[String,String]]
-      val data = result("data").asInstanceOf[String]
-
-      Some(Msg(key, meta.get("leochat_date").get, meta.get("leochat_name").get, data))
+      val msg = Json.parse[Msg](jsonText)
+      Some(msg)
     } catch {
       case NonFatal(e) =>
         logger.warn("read error: " + e)

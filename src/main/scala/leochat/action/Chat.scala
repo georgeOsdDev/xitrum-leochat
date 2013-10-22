@@ -1,13 +1,11 @@
 package leochat.action
 
-import scala.util.parsing.json.JSONObject
-
 import akka.actor.{Actor, ActorRef, Props}
 import glokka.Registry
-import xitrum.{Config, Logger, WebSocketActor, WebSocketBinary, WebSocketPing, WebSocketPong, WebSocketText}
+import xitrum.{Action, Config, Logger, WebSocketActor, WebSocketBinary, WebSocketPing, WebSocketPong, WebSocketText}
+import xitrum.util.Json
 import xitrum.annotation.{GET, WEBSOCKET}
 import leochat.model.{LeoFS, Msg}
-
 
 object MsgQManager {
   val NAME = {
@@ -47,10 +45,23 @@ class MsgQManager extends Actor with Logger {
   }
 }
 
-@GET("websocketImageChatDemo")
+
+@GET("leochat")
 class LeoChat extends AppAction {
   def execute() {
     respondView()
+  }
+}
+
+@GET("leochatRest")
+class LeoChatRest extends Action {
+  def execute() {
+    val lastKey = paramo("lastKey").getOrElse("")
+    // TODO: #7 read 10 objects before lastKey
+    LeoFS.read(lastKey).get match {
+      case msg:Msg => respondJson(Seq(msg))
+      case _ => respondJson(Seq())
+    }
   }
 }
 
@@ -93,8 +104,7 @@ class LeoChatActor extends WebSocketActor{
     context.become {
       case MsgsFromQueue(msgs) =>
         msgs.foreach { msg =>
-          val jsonObj = JSONObject(Map("key" -> msg.key, "date" -> msg.date, "name" -> msg.name, "body" -> msg.body));
-          respondWebSocketText(jsonObj.toString())
+          respondWebSocketText(Json.generate(msg))
         }
 
       case WebSocketText(text) =>
