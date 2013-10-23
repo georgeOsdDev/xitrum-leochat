@@ -10,6 +10,7 @@ import xitrum.annotation.CacheActionDay
 
 object MsgQManager {
   val MAX_LATEST_MSGS = 10
+  val MAX_OLDER_MSGS = 10
 
   val NAME = {
     val leofsConfig = xitrum.Config.application.getConfig("leofs")
@@ -25,20 +26,19 @@ object MsgQManager {
 
 case class MsgsFromQueue(msgs: Seq[Msg])
 case class Publish(msg: String, name: String)
-object Subscribe
+case object Subscribe
 
 class MsgQManager extends Actor with Logger {
-  import MsgQManager._
 
   private var clients    = Seq[ActorRef]()
-  private var latestMsgs = LeoFS.readHead(MAX_LATEST_MSGS)
+  private var latestMsgs = LeoFS.readHead(MsgQManager.MAX_LATEST_MSGS)
 
   def receive = {
     case Publish(msg, name) =>
       val saved = LeoFS.save(msg, name).get
       saved match {
         case msg: Msg =>
-          latestMsgs = (latestMsgs :+ msg).take(MAX_LATEST_MSGS)
+          latestMsgs = (latestMsgs :+ msg).tail
           clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
 
         case ignore =>
@@ -66,11 +66,7 @@ class LeoChat extends AppAction {
 class LeoChatRest extends Action {
   def execute() {
     val lastKey = paramo("lastKey").getOrElse("")
-    // TODO: #7 read MsgQManager.MAX_LATEST_MSGS messages before lastKey
-    LeoFS.read(lastKey).get match {
-      case msg:Msg => respondJson(Seq(msg))
-      case _ => respondJson(Seq())
-    }
+    respondJson(LeoFS.readWithMarker(lastKey, MsgQManager.MAX_OLDER_MSGS))
   }
 }
 

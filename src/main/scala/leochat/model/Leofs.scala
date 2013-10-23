@@ -124,4 +124,29 @@ object LeoFS extends Logger {
         Seq()
     }
   }
+
+  def readWithMarker(key: String, num: Int): Seq[Msg] = {
+    try {
+      val r = new ListObjectsRequest
+      r.setBucketName(bucket.getName)
+      r.setMaxKeys(num + 1)
+      r.setMarker(bucket.getName + "/" + key)
+
+      var messages = Seq[Msg]()
+      val objectListing = s3.listObjects(r)
+      objectListing.getObjectSummaries.toList.foreach { meta =>
+        // Display older to newer
+        read(meta.getKey).get match {
+          case msg:Msg => messages = messages :+ msg
+          case ignore =>
+        }
+      }
+      // First element is indicated by "key"
+      messages.tail
+    } catch {
+      case NonFatal(e) =>
+        logger.warn("readHead error: " + e)
+        Seq()
+    }
+  }
 }

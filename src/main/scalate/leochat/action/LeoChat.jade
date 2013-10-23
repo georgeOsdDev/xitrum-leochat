@@ -80,11 +80,15 @@ button(id="fileSend") stamp
 
     // read older messages via ajax request
     var readMore = function(){
-       $.get(ajaxUrl,{lastKey:$("#chatOutput").children('span')[0].id })
+       var lastMsg = $("#chatOutput").children('span')[0];
+       if (!lastMsg.id) return false;
+       $.get(ajaxUrl,{lastKey:lastMsg.id })
        .done(function(data){
+         $("#connected").after("<span> - - - - - - - </span><br>");
          $.each(data,function(idx,msg){
             $("#connected").after(getContent(msg));
          });
+         $("#chatOutput").scrollTop(0);
        })
        .fail(function(e){
          console.log("error");
