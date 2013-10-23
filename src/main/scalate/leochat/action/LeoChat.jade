@@ -1,7 +1,5 @@
 - import leochat.action._
 
-h1 Xitrum WebSocket chat with LeoFS
-
 #chatOutput
 input(type="text" id="chatInput" name="chatInput" class="required" disabled="disabled")
 
@@ -32,6 +30,9 @@ button(id="fileSend") stamp
         $('#chatInput').val('');
       }
     });
+    var color = "red";
+    if (location.port !== "8000") color = "blue";
+    $("#chatOutput").before("<h4>This instance is running on <span style='color:" +color + ";'>" + location.host + "</span></h4>");
 
     function sendImage(){
       var data = "",

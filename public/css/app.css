@@ -5,11 +5,15 @@ a {
 
 #chatOutput {
   border: 1px solid;
-  height: 200px;
+  height: 400px;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 #chatInput {
   width: 98%;
+}
+
+#subtitle {
+	margin-top: -30px;
 }

@@ -54,7 +54,7 @@ class MsgQManager extends Actor with Logger {
 }
 
 
-@GET("leochat")
+@GET("")
 class LeoChat extends AppAction {
   def execute() {
     respondView()
