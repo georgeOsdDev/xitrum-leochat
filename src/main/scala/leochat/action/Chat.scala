@@ -6,8 +6,11 @@ import xitrum.{Action, Config, Logger, WebSocketActor, WebSocketBinary, WebSocke
 import xitrum.util.Json
 import xitrum.annotation.{GET, WEBSOCKET}
 import leochat.model.{LeoFS, Msg}
+import xitrum.annotation.CacheActionDay
 
 object MsgQManager {
+  val MAX_LATEST_MSGS = 10
+
   val NAME = {
     val leofsConfig = xitrum.Config.application.getConfig("leofs")
     leofsConfig.getString("bucket")
@@ -22,23 +25,28 @@ object MsgQManager {
 
 case class MsgsFromQueue(msgs: Seq[Msg])
 case class Publish(msg: String, name: String)
-case class Subscribe(num: Int)
+object Subscribe
 
 class MsgQManager extends Actor with Logger {
-  private var clients = Seq[ActorRef]()
+  import MsgQManager._
+
+  private var clients    = Seq[ActorRef]()
+  private var latestMsgs = LeoFS.readHead(MAX_LATEST_MSGS)
 
   def receive = {
     case Publish(msg, name) =>
       val saved = LeoFS.save(msg, name).get
       saved match {
-        case msg:Msg => clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
+        case msg: Msg =>
+          latestMsgs = (latestMsgs :+ msg).take(MAX_LATEST_MSGS)
+          clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
+
         case ignore =>
       }
 
-    case Subscribe(num) =>
+    case Subscribe =>
       clients = clients :+ sender
-      val msgs = LeoFS.readHead(num)
-      sender ! MsgsFromQueue(msgs)
+      sender ! MsgsFromQueue(latestMsgs)
 
     case unexpected =>
       logger.warn("Unexpected message: " + unexpected)
@@ -54,10 +62,11 @@ class LeoChat extends AppAction {
 }
 
 @GET("leochatRest")
+@CacheActionDay(1)
 class LeoChatRest extends Action {
   def execute() {
     val lastKey = paramo("lastKey").getOrElse("")
-    // TODO: #7 read 10 objects before lastKey
+    // TODO: #7 read MsgQManager.MAX_LATEST_MSGS messages before lastKey
     LeoFS.read(lastKey).get match {
       case msg:Msg => respondJson(Seq(msg))
       case _ => respondJson(Seq())
@@ -100,7 +109,7 @@ class LeoChatActor extends WebSocketActor{
 
   private def chatStart(actorRef: ActorRef) {
     msgQueManager = actorRef
-    msgQueManager ! Subscribe(10)  // Read latest 10
+    msgQueManager ! Subscribe
     context.become {
       case MsgsFromQueue(msgs) =>
         msgs.foreach { msg =>
