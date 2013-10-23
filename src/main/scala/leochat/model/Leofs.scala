@@ -64,11 +64,11 @@ object LeoFS extends Logger {
 
     val meta        = new ObjectMetadata
 
-    val userMetaData = Map(
-        "leochat_content_type" -> "image",
-        "leochat_date" -> date,
-        "leochat_name" -> name
-    )
+    // val userMetaData = Map(
+    //    "leochat_content_type" -> "image",
+    //    "leochat_date" -> date,
+    //    "leochat_name" -> name
+    // )
     // meta.setUserMetadata(userMetaData)
     // Could not get userMetaData in read(), so save as part of data
     val msg = Msg(key, date, name, data)
