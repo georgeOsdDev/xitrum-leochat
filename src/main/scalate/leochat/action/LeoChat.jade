@@ -82,7 +82,8 @@ button(id="fileSend") stamp
     // read older messages via ajax request
     var readMore = function(){
        var lastMsg = $("#chatOutput").children('span')[0];
-       if (!lastMsg.id) return false;
+       if (!lastMsg || !lastMsg.id) return false;
+       $("#readMore").attr("disabled","disabled")
        $.get(ajaxUrl,{lastKey:lastMsg.id })
        .done(function(data){
          $("#connected").after("<span> - - - - - - - </span><br>");
@@ -90,9 +91,11 @@ button(id="fileSend") stamp
             $("#connected").after(getContent(msg));
          });
          $("#chatOutput").scrollTop(0);
+         $("#readMore").removeAttr("disabled");
        })
        .fail(function(e){
          console.log("error");
+         $("#readMore").removeAttr("disabled");
        });
     };
 
@@ -131,9 +134,11 @@ button(id="fileSend") stamp
           var text = '<b>[Disconnected]</b><br />';
           xitrum.appendAndScroll('#chatOutput', text);
           $('#chatInput').attr('disabled', 'disabled');
+          $('#chatFile') .attr('disabled', 'disabled');
+          $('#readMore') .attr('disabled', 'disabled');
 
           // Reconnect
-          setTimeout(initSocket, 1000);
+          setTimeout(initSocket, 5000);
         };
 
         socket.onmessage = function(event) {
