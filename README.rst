@@ -45,7 +45,9 @@ Getting started
 
 ::
 
+  sbt/sbt xitrum-package
   sh dev/8000.sh
   sh dev/8001.sh (from another terminal)
+  sh dev/8002.sh (from another terminal)
 
 Now you have clustered instances running at http://localhost:8000/ and https://localhost:8001/
