@@ -30,9 +30,7 @@ button(id="fileSend") stamp
         $('#chatInput').val('');
       }
     });
-    var color = "red";
-    if (location.port !== "8000") color = "blue";
-    $("#chatOutput").before("<h4>This instance is running on <span style='color:" +color + ";'>" + location.host + "</span></h4>");
+    $("#chatOutput").before("<h4>This instance is running on <span class='runningHost'>" + location.host + "</span></h4>");
 
     function sendImage(){
       var data = "",

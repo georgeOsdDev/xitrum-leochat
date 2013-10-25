@@ -5,7 +5,7 @@ a {
 
 #chatOutput {
   border: 1px solid;
-  height: 400px;
+  height: 300px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -16,4 +16,9 @@ a {
 
 #subtitle {
 	margin-top: -30px;
+}
+
+.runningHost{
+	font-size: 200%;
+	color:red;
 }
