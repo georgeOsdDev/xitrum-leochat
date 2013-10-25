@@ -58,11 +58,7 @@ object LeoFS extends Logger {
 
   def save(data: String, name: String): Option[Msg] = {
 
-    var prevMsgKey = ""
-    getLatestKey()  match {
-      case Some(key) => prevMsgKey = key
-      case None      =>
-    }
+    val prevMsgKey = getLatestKey().getOrElse("")
 
     // s3.listObjects() they are returned in alphabetical order (string comparison!)
     val length = Long.MaxValue.toString.length
