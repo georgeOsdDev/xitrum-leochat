@@ -19,7 +19,7 @@ object MsgQManager {
 
   val registry = Registry.start(Config.actorSystem, "proxy")
 
-  // Dummy method to force the start of the registy;
+  // Dummy method to force the start of the registry;
   // Call this method at program start
   def start() {}
 }
@@ -87,7 +87,7 @@ class LeoChatActor extends WebSocketActor{
         chatStart(actorRef)
 
       case Registry.LookupResultNone(_) =>
-        val tmp = Config.actorSystem.actorOf(Props[MsgQManager], MsgQManager.NAME)
+        val tmp = Config.actorSystem.actorOf(Props[MsgQManager])
         registry ! Registry.Register(MsgQManager.NAME, tmp)
         context.become {
           case Registry.RegisterResultOk(_, actorRef) =>
