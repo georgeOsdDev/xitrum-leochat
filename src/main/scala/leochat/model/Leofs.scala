@@ -2,23 +2,23 @@ package leochat.model
 
 import java.io.ByteArrayInputStream
 import java.util.Date
-
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.io.Source
 import scala.util.control.NonFatal
-
+import scala.annotation.tailrec
 import com.amazonaws.{ClientConfiguration, Protocol}
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.{Bucket, GetObjectRequest, ListObjectsRequest, ObjectMetadata, PutObjectRequest}
-
 import xitrum.Logger
-import xitrum.util.Json
+import xitrum.util.{SeriDeseri, Loader, Json}
 
-case class Msg(key: String, date: String, name: String, body: String)
+
+case class Msg(key: String, date: String, name: String, body: String, prevMsgKey: String)
 
 object LeoFS extends Logger {
   private val leofsConfig = xitrum.Config.application.getConfig("leofs")
+  private val LATEST = "latest"
 
   private val s3 = {
     // You need to set 'Proxy host', 'Proxy port' and 'Protocol'
@@ -57,13 +57,19 @@ object LeoFS extends Logger {
   }
 
   def save(data: String, name: String): Option[Msg] = {
+
+    var prevMsgKey = ""
+    getLatestKey()  match {
+      case Some(key) => prevMsgKey = key
+      case None      =>
+    }
+
     // s3.listObjects() they are returned in alphabetical order (string comparison!)
     val length = Long.MaxValue.toString.length
     val key    = s"%${length}d".format(Long.MaxValue - System.currentTimeMillis())
     val date    =  "%tY/%<tm/%<td %<tH:%<tM:%<tS".format(new Date)
 
     val meta        = new ObjectMetadata
-
     // val userMetaData = Map(
     //    "leochat_content_type" -> "image",
     //    "leochat_date" -> date,
@@ -71,11 +77,21 @@ object LeoFS extends Logger {
     // )
     // meta.setUserMetadata(userMetaData)
     // Could not get userMetaData in read(), so save as part of data
-    val msg = Msg(key, date, name, data)
+
+    val msg   = Msg(key, date, name, data, prevMsgKey)
+
+    // TODO : Check why become error when deserialize
+    // Caused by: com.esotericsoftware.kryo.KryoException: Buffer too small: capacity: 0, required: 1
+    //    val bytes = SeriDeseri.serialize(msg)
+    //    meta.setContentLength(bytes.length)
+
     val jsonStr = Json.generate(msg)
     meta.setContentLength(jsonStr.length)
+
     try {
+      // s3.putObject(new PutObjectRequest(bucket.getName, key, new ByteArrayInputStream(bytes), meta))
       s3.putObject(new PutObjectRequest(bucket.getName, key, stringToStream(jsonStr), meta))
+      saveLatest(key)
       Some(msg)
     } catch {
       case NonFatal(e) =>
@@ -84,14 +100,42 @@ object LeoFS extends Logger {
     }
   }
 
+  def saveLatest(key: String) = {
+    val meta        = new ObjectMetadata
+    meta.setContentLength(key.length)
+    try {
+
+      s3.putObject(new PutObjectRequest(bucket.getName, LATEST, stringToStream(key), meta))
+    } catch {
+      case NonFatal(e) =>
+        logger.warn("save latest error: " + e)
+        None
+    }
+  }
+
+  def getLatestKey(): Option[String] = {
+    try {
+      val v = s3.getObject(new GetObjectRequest(bucket.getName, LATEST))
+      val content = v.getObjectContent
+      Some(Source.fromInputStream(content).getLines.mkString(""))
+    } catch {
+      case NonFatal(e) =>
+        logger.warn("read latest error: " + e)
+        None
+    }
+  }
+
   def read(key: String): Option[Msg] = {
     try {
       val v = s3.getObject(new GetObjectRequest(bucket.getName, key))
-      val content = v.getObjectContent
 
-      // val meta    = v.getObjectMetadata
-      // val udata   = meta.getUserMetadata
-      // Could not get userMetaData from storage why?
+      // TODO : Check why become error when deserialize
+      // Caused by: com.esotericsoftware.kryo.KryoException: Buffer too small: capacity: 0, required: 1
+      // val inputStream = v.getObjectContent
+      // val bytes = Loader.bytesFromInputStream(inputStream)
+      // Some(SeriDeseri.deserialize(bytes).asInstanceOf[Msg])
+
+      val content = v.getObjectContent
       val jsonText = Source.fromInputStream(content).getLines.mkString("")
       val msg = Json.parse[Msg](jsonText)
       Some(msg)
@@ -102,15 +146,40 @@ object LeoFS extends Logger {
     }
   }
 
+  @tailrec
+  def readAndPrev (num: Int, key: String, msgs: Seq[Msg]): Seq[Msg] = {
+    if(num < 1) return msgs
+    read(key) match {
+      case Some(m) =>
+        val msg = m.asInstanceOf[Msg]
+        readAndPrev(num - 1, msg.prevMsgKey, msgs :+ msg)
+      case None =>
+        msgs
+    }
+  }
+
   def readHead(num: Int): Seq[Msg] = {
+    getLatestKey() match {
+      case Some(key) =>
+        readAndPrev(num, key, Seq())
+      case None =>  Seq()
+    }
+  }
+
+  def readWithMarker(key: String, num: Int): Seq[Msg] = {
+      readAndPrev(num+1, key, Seq()).tail
+  }
+
+  @Deprecated
+  def readHeadWithObjectListing(num: Int): Seq[Msg] = {
     try {
       val r = new ListObjectsRequest
       r.setBucketName(bucket.getName)
-      r.setMaxKeys(num)
-
+      // r.setMaxKeys(num)
       var messages = Seq[Msg]()
       val objectListing = s3.listObjects(r)
-      objectListing.getObjectSummaries.toList.foreach { meta =>
+      // objectListing.getObjectSummaries.toList.foreach { meta =>
+      objectListing.getObjectSummaries.toList.take(num).foreach { meta =>
         // Display older to newer
         read(meta.getKey).get match {
           case msg:Msg => messages = msg +: messages
@@ -125,7 +194,8 @@ object LeoFS extends Logger {
     }
   }
 
-  def readWithMarker(key: String, num: Int): Seq[Msg] = {
+  @Deprecated
+  def readWithMarkerWithObjectListing(key: String, num: Int): Seq[Msg] = {
     try {
       val r = new ListObjectsRequest
       r.setBucketName(bucket.getName)

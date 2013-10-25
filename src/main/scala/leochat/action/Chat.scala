@@ -29,19 +29,19 @@ case class Publish(msg: String, name: String)
 case object Subscribe
 
 class MsgQManager extends Actor with Logger {
-
+  import MsgQManager.MAX_LATEST_MSGS
   private var clients    = Seq[ActorRef]()
-  private var latestMsgs = LeoFS.readHead(MsgQManager.MAX_LATEST_MSGS)
+  private var latestMsgs = LeoFS.readHead(MAX_LATEST_MSGS).reverse
 
   def receive = {
     case Publish(msg, name) =>
-      val saved = LeoFS.save(msg, name).get
+      val saved = LeoFS.save(msg, name)
       saved match {
-        case msg: Msg =>
-          latestMsgs = (latestMsgs :+ msg).tail
+        case Some(msg) =>
+          latestMsgs = (latestMsgs :+ msg).takeRight(MAX_LATEST_MSGS)
           clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
 
-        case ignore =>
+        case None =>
       }
 
     case Subscribe =>
