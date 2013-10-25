@@ -7,6 +7,7 @@ import xitrum.util.Json
 import xitrum.annotation.{GET, WEBSOCKET}
 import leochat.model.{LeoFS, Msg}
 import xitrum.annotation.CacheActionDay
+import akka.actor.Terminated
 
 object MsgQManager {
   val MAX_LATEST_MSGS = 10
@@ -40,16 +41,24 @@ class MsgQManager extends Actor with Logger {
         case Some(msg) =>
           latestMsgs = (latestMsgs :+ msg).takeRight(MAX_LATEST_MSGS)
           clients.foreach(_ ! MsgsFromQueue(Seq(msg)))
-
         case None =>
       }
 
     case Subscribe =>
+      logger.debug("client join :" + sender.path.name)
       clients = clients :+ sender
+      logger.debug("clients count :" + clients.length)
       sender ! MsgsFromQueue(latestMsgs)
+      context.watch(sender)
+
+    case Terminated(client) =>
+      logger.debug("client terminated :" + sender.path.name)
+      clients = clients.filterNot(_ == client)
+      logger.debug("clients count :" + clients.length)
 
     case unexpected =>
       logger.warn("Unexpected message: " + unexpected)
+
   }
 }
 
