@@ -28,6 +28,7 @@ object MsgQManager {
 case class MsgsFromQueue(msgs: Seq[Msg])
 case class Publish(msg: String, name: String)
 case object Subscribe
+case object Recovery
 
 class MsgQManager extends Actor with Logger {
   import MsgQManager.MAX_LATEST_MSGS
@@ -55,6 +56,12 @@ class MsgQManager extends Actor with Logger {
       logger.debug("client terminated :" + sender.path.name)
       clients = clients.filterNot(_ == client)
       logger.debug("clients count :" + clients.length)
+
+    case Recovery =>
+      logger.debug("client join :" + sender.path.name)
+      clients = clients :+ sender
+      logger.debug("clients count :" + clients.length)
+      context.watch(sender)
 
     case unexpected =>
       logger.warn("Unexpected message: " + unexpected)
@@ -84,27 +91,27 @@ class LeoChatActor extends WebSocketActor{
   private var msgQueManager: ActorRef = _
 
   def execute() {
-    getMsgQManager()
+    getMsgQManager(true)
   }
 
-  private def getMsgQManager() {
+  private def getMsgQManager(isInit: Boolean) {
     val registry = MsgQManager.registry
 
     registry ! Registry.LookupOrCreate(MsgQManager.NAME)
     context.become {
       case Registry.LookupResultOk(_, actorRef) =>
-        chatStart(actorRef)
+        chatStart(actorRef, isInit)
 
       case Registry.LookupResultNone(_) =>
         val tmp = Config.actorSystem.actorOf(Props[MsgQManager])
         registry ! Registry.Register(MsgQManager.NAME, tmp)
         context.become {
           case Registry.RegisterResultOk(_, actorRef) =>
-            chatStart(actorRef)
+            chatStart(actorRef, isInit)
 
           case Registry.RegisterResultConflict(_, actorRef) =>
             Config.actorSystem.stop(tmp)
-            chatStart(actorRef)
+            chatStart(actorRef, isInit)
         }
 
       case unexpected =>
@@ -112,9 +119,11 @@ class LeoChatActor extends WebSocketActor{
     }
   }
 
-  private def chatStart(actorRef: ActorRef) {
+  private def chatStart(actorRef: ActorRef, isInit: Boolean) {
     msgQueManager = actorRef
-    msgQueManager ! Subscribe
+    context.watch(msgQueManager)
+    val initMsg = if(isInit) Subscribe else Recovery
+    msgQueManager ! initMsg
     context.become {
       case MsgsFromQueue(msgs) =>
         msgs.foreach { msg =>
@@ -123,6 +132,10 @@ class LeoChatActor extends WebSocketActor{
 
       case WebSocketText(text) =>
         msgQueManager ! Publish(text, self.path.name)
+
+      case Terminated(msgQueManager) =>
+        Thread.sleep(1000L * (scala.util.Random.nextInt(3)+1))
+        getMsgQManager(false)
 
       case unexpected =>
         logger.warn("Unexpected message: " + unexpected)

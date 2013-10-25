@@ -121,6 +121,7 @@ button(id="fileSend") stamp
         socket = new WebSocket(url);
 
         socket.onopen = function(event) {
+          $("#chatOutput").empty();
           var text = '<div id="connected"><b>[Connected]</b>&nbsp;<button id="readMore">Read Older</button><br /></div>';
           xitrum.appendAndScroll('#chatOutput', text);
           $('#chatInput').removeAttr('disabled');
